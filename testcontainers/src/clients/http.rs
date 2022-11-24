@@ -349,7 +349,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn http_run_command_should_expose_all_ports_if_no_explicit_mapping_requested() {
-        let docker = Http::new();
+        let docker = Http::default();
         let image = HelloWorld::default();
         let container = docker.run(image).await;
 
@@ -361,7 +361,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn http_run_command_should_expose_only_requested_ports() {
-        let docker = Http::new();
+        let docker = Http::default();
         let image = GenericImage::new("hello-world", "latest");
         let image = RunnableImage::from(image)
             .with_mapped_port((123, 456))
@@ -381,7 +381,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn http_run_command_should_include_network() {
-        let docker = Http::new();
+        let docker = Http::default();
         let image = GenericImage::new("hello-world", "latest");
         let image = RunnableImage::from(image).with_network("awesome-net-1");
         let container = docker.run(image).await;
@@ -402,7 +402,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn http_run_command_should_include_name() {
-        let docker = Http::new();
+        let docker = Http::default();
         let image = GenericImage::new("hello-world", "latest");
         let image = RunnableImage::from(image).with_container_name("hello_container");
         let container = docker.run(image).await;
@@ -416,7 +416,7 @@ mod tests {
         let client = bollard::Docker::connect_with_http_defaults().unwrap();
 
         {
-            let docker = Http::new();
+            let docker = Http::default();
             assert!(!network_exists(&client, "awesome-net-2").await);
 
             // creating the first container creates the network
