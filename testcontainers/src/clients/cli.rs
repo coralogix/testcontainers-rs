@@ -163,6 +163,10 @@ impl Client {
             command.arg("--entrypoint").arg(entrypoint);
         }
 
+        if let Some(platform) = image.inner().platform() {
+            command.arg("--platform").arg(platform);
+        }
+
         let is_container_networked = image
             .network()
             .as_ref()
