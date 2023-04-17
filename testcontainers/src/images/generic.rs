@@ -12,6 +12,7 @@ impl ImageArgs for Vec<String> {
 pub struct GenericImage {
     name: String,
     tag: String,
+    platform: Option<String>,
     volumes: BTreeMap<String, String>,
     env_vars: BTreeMap<String, String>,
     wait_for: Vec<WaitFor>,
@@ -24,6 +25,7 @@ impl Default for GenericImage {
         Self {
             name: "".to_owned(),
             tag: "".to_owned(),
+            platform: None,
             volumes: BTreeMap::new(),
             env_vars: BTreeMap::new(),
             wait_for: Vec::new(),
@@ -66,6 +68,11 @@ impl GenericImage {
         self.exposed_ports.push(port);
         self
     }
+
+    pub fn with_platform(mut self, platform: &str) -> Self {
+        self.platform = Some(platform.to_string());
+        self
+    }
 }
 
 impl Image for GenericImage {
@@ -97,6 +104,10 @@ impl Image for GenericImage {
 
     fn expose_ports(&self) -> Vec<u16> {
         self.exposed_ports.clone()
+    }
+
+    fn platform(&self) -> Option<String> {
+        self.platform.clone()
     }
 }
 
