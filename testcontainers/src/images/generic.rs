@@ -16,6 +16,7 @@ pub struct GenericImage {
     volumes: BTreeMap<String, String>,
     env_vars: BTreeMap<String, String>,
     wait_for: Vec<WaitFor>,
+    fail_on: Vec<WaitFor>,
     entrypoint: Option<String>,
     exposed_ports: Vec<u16>,
 }
@@ -29,6 +30,7 @@ impl Default for GenericImage {
             volumes: BTreeMap::new(),
             env_vars: BTreeMap::new(),
             wait_for: Vec::new(),
+            fail_on: Vec::new(),
             entrypoint: None,
             exposed_ports: Vec::new(),
         }
@@ -73,6 +75,11 @@ impl GenericImage {
         self.platform = Some(platform.to_string());
         self
     }
+
+    pub fn die_on(mut self, fail_on: WaitFor) -> Self {
+        self.fail_on.push(fail_on);
+        self
+    }
 }
 
 impl Image for GenericImage {
@@ -88,6 +95,10 @@ impl Image for GenericImage {
 
     fn ready_conditions(&self) -> Vec<WaitFor> {
         self.wait_for.clone()
+    }
+
+    fn abort_conditions(&self) -> Vec<WaitFor> {
+        self.fail_on.clone()
     }
 
     fn env_vars(&self) -> Box<dyn Iterator<Item = (&String, &String)> + '_> {

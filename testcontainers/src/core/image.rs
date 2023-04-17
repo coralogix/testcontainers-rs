@@ -51,6 +51,10 @@ where
     /// more time before it is ready.
     fn ready_conditions(&self) -> Vec<WaitFor>;
 
+    fn abort_conditions(&self) -> Vec<WaitFor> {
+        vec![]
+    }
+
     /// There are a couple of things regarding the environment variables of images:
     ///
     /// 1. Similar to the Default implementation of an Image, the Default instance
@@ -212,6 +216,10 @@ impl<I: Image> RunnableImage<I> {
 
     pub fn ready_conditions(&self) -> Vec<WaitFor> {
         self.image.ready_conditions()
+    }
+
+    pub fn abort_conditions(&self) -> Vec<WaitFor> {
+        self.image.abort_conditions()
     }
 
     pub fn expose_ports(&self) -> Vec<u16> {

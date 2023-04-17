@@ -4,6 +4,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use bollard::models::{ContainerInspectResponse, HealthStatusEnum};
+use futures::future::Either;
 use futures::{executor::block_on, FutureExt};
 use std::{fmt, net::IpAddr, str::FromStr, time::Duration};
 use tokio::time::sleep;
@@ -213,50 +214,78 @@ where
         container
     }
 
+    async fn fail_condition(&self) -> WaitFor {
+        let conds = self.image.abort_conditions();
+
+        let futs = conds.iter().map(|condition| {
+            Box::pin(
+                self.await_condition(condition.clone())
+                    .map(|_| condition.clone()),
+            )
+        });
+
+        futures::future::select_all(futs).await.0
+    }
+
+    async fn await_condition(&self, condition: WaitFor) {
+        match condition {
+            WaitFor::StdOutMessage { message } => self
+                .docker_client
+                .stdout_logs(&self.id)
+                .wait_for_message(&message)
+                .await
+                .unwrap(),
+            WaitFor::StdErrMessage { message } => self
+                .docker_client
+                .stderr_logs(&self.id)
+                .wait_for_message(&message)
+                .await
+                .unwrap(),
+            WaitFor::Duration { length } => {
+                tokio::time::sleep(length).await;
+            }
+            WaitFor::Healthcheck => loop {
+                use HealthStatusEnum::*;
+
+                let health_status = self
+                    .docker_client
+                    .inspect(&self.id)
+                    .await
+                    .state
+                    .unwrap_or_else(|| panic!("Container state not available"))
+                    .health
+                    .unwrap_or_else(|| panic!("Health state not available"))
+                    .status;
+
+                match health_status {
+                    Some(HEALTHY) => break,
+                    None | Some(EMPTY) | Some(NONE) => {
+                        panic!("Healthcheck not configured for container")
+                    }
+                    Some(UNHEALTHY) => panic!("Healthcheck reports unhealthy"),
+                    Some(STARTING) => sleep(Duration::from_millis(100)).await,
+                }
+                panic!("Healthcheck for the container is not configured");
+            },
+            WaitFor::Nothing => {}
+        }
+    }
+
     async fn block_until_ready(&self) {
         log::debug!("Waiting for container {} to be ready", self.id);
 
         for condition in self.image.ready_conditions() {
-            match condition {
-                WaitFor::StdOutMessage { message } => self
-                    .docker_client
-                    .stdout_logs(&self.id)
-                    .wait_for_message(&message)
-                    .await
-                    .unwrap(),
-                WaitFor::StdErrMessage { message } => self
-                    .docker_client
-                    .stderr_logs(&self.id)
-                    .wait_for_message(&message)
-                    .await
-                    .unwrap(),
-                WaitFor::Duration { length } => {
-                    tokio::time::sleep(length).await;
+            match futures::future::select(
+                Box::pin(self.await_condition(condition)),
+                Box::pin(self.fail_condition()),
+            )
+            .await
+            {
+                Either::Left((_, _)) => {}
+                Either::Right((cond, _)) => {
+                    self.drop_async().await;
+                    panic!("Container failure condition met: {:?}", cond);
                 }
-                WaitFor::Healthcheck => loop {
-                    use HealthStatusEnum::*;
-
-                    let health_status = self
-                        .docker_client
-                        .inspect(&self.id)
-                        .await
-                        .state
-                        .unwrap_or_else(|| panic!("Container state not available"))
-                        .health
-                        .unwrap_or_else(|| panic!("Health state not available"))
-                        .status;
-
-                    match health_status {
-                        Some(HEALTHY) => break,
-                        None | Some(EMPTY) | Some(NONE) => {
-                            panic!("Healthcheck not configured for container")
-                        }
-                        Some(UNHEALTHY) => panic!("Healthcheck reports unhealthy"),
-                        Some(STARTING) => sleep(Duration::from_millis(100)).await,
-                    }
-                    panic!("Healthcheck for the container is not configured");
-                },
-                WaitFor::Nothing => {}
             }
         }
 
