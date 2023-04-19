@@ -167,6 +167,8 @@ impl Client {
             command.arg("--platform").arg(platform);
         }
 
+        command.arg("--pull").arg("always");
+
         let is_container_networked = image
             .network()
             .as_ref()
