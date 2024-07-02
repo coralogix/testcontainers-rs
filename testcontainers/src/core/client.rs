@@ -318,9 +318,14 @@ impl Client {
             .map_err(ClientError::StartContainer)
     }
 
-    pub(crate) async fn pull_image(&self, descriptor: &str) -> Result<(), ClientError> {
+    pub(crate) async fn pull_image(
+        &self,
+        descriptor: &str,
+        platform: Option<&str>,
+    ) -> Result<(), ClientError> {
         let pull_options = Some(CreateImageOptions {
             from_image: descriptor,
+            platform: platform.unwrap_or_default(),
             ..Default::default()
         });
         let credentials = self.credentials_for_image(descriptor).await;
