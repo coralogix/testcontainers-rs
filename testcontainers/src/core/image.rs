@@ -32,6 +32,10 @@ where
     /// suddenly changed.
     fn tag(&self) -> &str;
 
+    fn platform(&self) -> Option<&str> {
+        None
+    }
+
     /// Returns a list of conditions that need to be met before a started container is considered ready.
     ///
     /// This method is the **🍞 and butter** of the whole testcontainers library. Containers are

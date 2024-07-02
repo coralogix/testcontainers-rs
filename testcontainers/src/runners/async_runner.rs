@@ -101,7 +101,7 @@ where
             if let Some(name) = runnable_image.container_name() {
                 create_options = Some(CreateContainerOptions {
                     name: name.to_owned(),
-                    platform: None,
+                    platform: runnable_image.image().platform().map(|p| p.to_string()),
                 })
             }
 
@@ -180,6 +180,9 @@ where
             if !cmd.is_empty() {
                 config.cmd = Some(cmd);
             }
+
+            // Always pull an image
+            client.pull_image(&runnable_image.descriptor()).await?;
 
             // create the container with options
             let create_result = client

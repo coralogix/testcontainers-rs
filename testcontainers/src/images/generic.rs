@@ -8,6 +8,7 @@ use crate::{
 pub struct GenericImage {
     name: String,
     tag: String,
+    platform: Option<String>,
     wait_for: Vec<WaitFor>,
     entrypoint: Option<String>,
     exposed_ports: Vec<ContainerPort>,
@@ -18,10 +19,16 @@ impl GenericImage {
         Self {
             name: name.into(),
             tag: tag.into(),
+            platform: None,
             wait_for: Vec::new(),
             entrypoint: None,
             exposed_ports: Vec::new(),
         }
+    }
+
+    pub fn with_platform(mut self, platform: &str) -> Self {
+        self.platform = Some(platform.to_string());
+        self
     }
 
     pub fn with_wait_for(mut self, wait_for: WaitFor) -> Self {
@@ -47,6 +54,10 @@ impl Image for GenericImage {
 
     fn tag(&self) -> &str {
         &self.tag
+    }
+
+    fn platform(&self) -> Option<&str> {
+        self.platform.as_deref()
     }
 
     fn ready_conditions(&self) -> Vec<WaitFor> {
