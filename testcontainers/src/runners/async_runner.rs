@@ -105,6 +105,12 @@ where
                 })
             }
 
+            if let Some(platform) = runnable_image.platform() {
+                let mut options = create_options.unwrap_or_default();
+                options.platform = Some(platform.to_owned());
+                create_options = Some(options);
+            }
+
             // handle environment variables
             let envs: Vec<String> = runnable_image
                 .env_vars()

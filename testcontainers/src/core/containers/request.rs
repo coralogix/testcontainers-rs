@@ -24,6 +24,7 @@ pub struct ContainerRequest<I: Image> {
     pub(crate) cgroupns_mode: Option<CgroupnsMode>,
     pub(crate) userns_mode: Option<String>,
     pub(crate) startup_timeout: Option<Duration>,
+    pub(crate) platform: Option<String>,
 }
 
 /// Represents a port mapping between a host's external port and the internal port of a container.
@@ -144,6 +145,10 @@ impl<I: Image> ContainerRequest<I> {
     pub fn startup_timeout(&self) -> Option<Duration> {
         self.startup_timeout
     }
+
+    pub fn platform(&self) -> Option<&str> {
+        self.platform.as_deref()
+    }
 }
 
 impl<I: Image> From<I> for ContainerRequest<I> {
@@ -164,6 +169,7 @@ impl<I: Image> From<I> for ContainerRequest<I> {
             cgroupns_mode: None,
             userns_mode: None,
             startup_timeout: None,
+            platform: None,
         }
     }
 }

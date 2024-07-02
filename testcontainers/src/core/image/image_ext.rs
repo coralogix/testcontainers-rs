@@ -81,6 +81,8 @@ pub trait ImageExt<I: Image> {
 
     /// Sets the startup timeout for the container. The default is 60 seconds.
     fn with_startup_timeout(self, timeout: Duration) -> ContainerRequest<I>;
+
+    fn with_platform(self, platform: impl Into<String>) -> ContainerRequest<I>;
 }
 
 /// Implements the [`ImageExt`] trait for the every type that can be converted into a [`ContainerRequest`].
@@ -199,6 +201,15 @@ impl<RI: Into<ContainerRequest<I>>, I: Image> ImageExt<I> for RI {
         let runnable = self.into();
         ContainerRequest {
             startup_timeout: Some(timeout),
+            ..runnable
+        }
+    }
+
+    fn with_platform(self, platform: impl Into<String>) -> ContainerRequest<I> {
+        let runnable = self.into();
+
+        ContainerRequest {
+            platform: Some(platform.into()),
             ..runnable
         }
     }
