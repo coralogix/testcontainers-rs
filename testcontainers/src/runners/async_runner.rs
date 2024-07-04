@@ -182,7 +182,13 @@ where
             }
 
             // Always pull an image
-            client.pull_image(&runnable_image.descriptor()).await?;
+            if let Some(platform) = runnable_image.image().platform() {
+                client
+                    .pull_image_for_platform(&runnable_image.descriptor(), platform)
+                    .await?;
+            } else {
+                client.pull_image(&runnable_image.descriptor()).await?;
+            }
 
             // create the container with options
             let create_result = client
@@ -195,7 +201,13 @@ where
                         status_code: 404, ..
                     },
                 )) => {
-                    client.pull_image(&runnable_image.descriptor()).await?;
+                    if let Some(platform) = runnable_image.image().platform() {
+                        client
+                            .pull_image_for_platform(&runnable_image.descriptor(), platform)
+                            .await?;
+                    } else {
+                        client.pull_image(&runnable_image.descriptor()).await?;
+                    }
                     client.create_container(create_options, config).await
                 }
                 res => res,
@@ -225,7 +237,13 @@ where
     async fn pull_image(self) -> Result<ContainerRequest<I>> {
         let runnable_image = self.into();
         let client = Client::lazy_client().await?;
-        client.pull_image(&runnable_image.descriptor()).await?;
+        if let Some(platform) = &runnable_image.image().platform() {
+            client
+                .pull_image_for_platform(&runnable_image.descriptor(), platform)
+                .await?;
+        } else {
+            client.pull_image(&runnable_image.descriptor()).await?;
+        }
 
         Ok(runnable_image)
     }

@@ -334,6 +334,27 @@ impl Client {
         Ok(())
     }
 
+    pub(crate) async fn pull_image_for_platform(
+        &self,
+        descriptor: &str,
+        platform: &str,
+    ) -> Result<(), ClientError> {
+        let pull_options = Some(CreateImageOptions {
+            from_image: descriptor,
+            platform: platform,
+            ..Default::default()
+        });
+        let credentials = self.credentials_for_image(descriptor).await;
+        let mut pulling = self.bollard.create_image(pull_options, None, credentials);
+        while let Some(result) = pulling.next().await {
+            result.map_err(|err| ClientError::PullImage {
+                descriptor: descriptor.to_string(),
+                err,
+            })?;
+        }
+        Ok(())
+    }
+
     pub(crate) async fn network_exists(&self, network: &str) -> Result<bool, ClientError> {
         let networks = self
             .bollard
