@@ -318,34 +318,27 @@ impl Client {
             .map_err(ClientError::StartContainer)
     }
 
-    pub(crate) async fn pull_image(&self, descriptor: &str) -> Result<(), ClientError> {
-        let pull_options = Some(CreateImageOptions {
-            from_image: descriptor,
-            ..Default::default()
-        });
-        let credentials = self.credentials_for_image(descriptor).await;
-        let mut pulling = self.bollard.create_image(pull_options, None, credentials);
-        while let Some(result) = pulling.next().await {
-            result.map_err(|err| ClientError::PullImage {
-                descriptor: descriptor.to_string(),
-                err,
-            })?;
-        }
-        Ok(())
-    }
-
-    pub(crate) async fn pull_image_for_platform(
+    pub(crate) async fn pull_image(
         &self,
         descriptor: &str,
-        platform: &str,
+        platform: Option<&str>,
     ) -> Result<(), ClientError> {
-        let pull_options = Some(CreateImageOptions {
-            from_image: descriptor,
-            platform: platform,
-            ..Default::default()
-        });
+        let pull_options = match platform {
+            Some(platform) => CreateImageOptions {
+                from_image: descriptor,
+                platform,
+                ..Default::default()
+            },
+            None => CreateImageOptions {
+                from_image: descriptor,
+                ..Default::default()
+            },
+        };
+
         let credentials = self.credentials_for_image(descriptor).await;
-        let mut pulling = self.bollard.create_image(pull_options, None, credentials);
+        let mut pulling = self
+            .bollard
+            .create_image(Some(pull_options), None, credentials);
         while let Some(result) = pulling.next().await {
             result.map_err(|err| ClientError::PullImage {
                 descriptor: descriptor.to_string(),
