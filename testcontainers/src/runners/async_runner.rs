@@ -188,7 +188,9 @@ where
                     status_code: 404, ..
                 },
             )) => {
-                client.pull_image(&container_req.descriptor(), container_req.image.platform()).await?;
+                client
+                    .pull_image(&container_req.descriptor(), container_req.image.platform())
+                    .await?;
                 client.create_container(create_options, config).await
             }
             res => res,
@@ -223,7 +225,12 @@ where
     async fn pull_image(self) -> Result<ContainerRequest<I>> {
         let container_req = self.into();
         let client = Client::lazy_client().await?;
-        client.pull_image(&container_req.descriptor(), container_req.image().platform()).await?;
+        client
+            .pull_image(
+                &container_req.descriptor(),
+                container_req.image().platform(),
+            )
+            .await?;
 
         Ok(container_req)
     }
