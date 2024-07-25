@@ -3,7 +3,11 @@ use std::time::Duration;
 use bollard::Docker;
 use reqwest::StatusCode;
 use testcontainers::{
-    core::{wait::HttpWaitStrategy, CmdWaitFor, ExecCommand, IntoContainerPort, WaitFor},
+    core::{
+        logs::{consumer::logging_consumer::LoggingConsumer, LogFrame},
+        wait::{ExitWaitStrategy, HttpWaitStrategy, LogWaitStrategy},
+        CmdWaitFor, ExecCommand, IntoContainerPort, WaitFor,
+    },
     runners::AsyncRunner,
     GenericImage, *,
 };
@@ -22,7 +26,10 @@ impl Image for HelloWorld {
     }
 
     fn ready_conditions(&self) -> Vec<WaitFor> {
-        vec![WaitFor::message_on_stdout("Hello from Docker!")]
+        vec![
+            WaitFor::message_on_stdout("Hello from Docker!"),
+            WaitFor::exit(ExitWaitStrategy::new().with_exit_code(0)),
+        ]
     }
 }
 
@@ -94,7 +101,10 @@ async fn async_run_exec() -> anyhow::Result<()> {
     let _ = pretty_env_logger::try_init();
 
     let image = GenericImage::new("simple_web_server", "latest")
-        .with_wait_for(WaitFor::message_on_stdout("server is ready"))
+        .with_wait_for(WaitFor::message_on_stderr("server will be listening to"))
+        .with_wait_for(WaitFor::log(
+            LogWaitStrategy::stdout("server is ready").with_times(2),
+        ))
         .with_wait_for(WaitFor::seconds(1));
     let container = image.start().await?;
 
@@ -164,5 +174,24 @@ async fn async_run_exec_fails_due_to_unexpected_code() -> anyhow::Result<()> {
         )
         .await;
     assert!(res.is_err());
+    Ok(())
+}
+
+#[tokio::test]
+async fn async_run_with_log_consumer() -> anyhow::Result<()> {
+    let _ = pretty_env_logger::try_init();
+
+    let (tx, rx) = std::sync::mpsc::sync_channel(1);
+    let _container = HelloWorld
+        .with_log_consumer(move |frame: &LogFrame| {
+            // notify when the expected message is found
+            if String::from_utf8_lossy(frame.bytes()) == "Hello from Docker!\n" {
+                let _ = tx.send(());
+            }
+        })
+        .with_log_consumer(LoggingConsumer::new().with_stderr_level(log::Level::Error))
+        .start()
+        .await?;
+    rx.recv()?; // notification from consumer
     Ok(())
 }

@@ -1,17 +1,20 @@
 use std::{env::var, fmt::Debug, time::Duration};
 
-use bytes::Bytes;
+pub use exit_strategy::ExitWaitStrategy;
 pub use health_strategy::HealthWaitStrategy;
 pub use http_strategy::HttpWaitStrategy;
+pub use log_strategy::LogWaitStrategy;
 
 use crate::{
-    core::{client::Client, error::WaitContainerError},
+    core::{client::Client, logs::LogSource},
     ContainerAsync, Image,
 };
 
 pub(crate) mod cmd_wait;
+pub(crate) mod exit_strategy;
 pub(crate) mod health_strategy;
 pub(crate) mod http_strategy;
+pub(crate) mod log_strategy;
 
 pub(crate) trait WaitStrategy {
     async fn wait_until_ready<I: Image>(
@@ -26,31 +29,32 @@ pub(crate) trait WaitStrategy {
 pub enum WaitFor {
     /// An empty condition. Useful for default cases or fallbacks.
     Nothing,
-    /// Wait for a message on the stdout stream of the container's logs.
-    StdOutMessage { message: Bytes },
-    /// Wait for a message on the stderr stream of the container's logs.
-    StdErrMessage { message: Bytes },
+    /// Wait for a certain message to appear in the container's logs.
+    Log(LogWaitStrategy),
     /// Wait for a certain amount of time.
     Duration { length: Duration },
     /// Wait for the container's status to become `healthy`.
     Healthcheck(HealthWaitStrategy),
     /// Wait for a certain HTTP response.
     Http(HttpWaitStrategy),
+    /// Wait for the container to exit.
+    Exit(ExitWaitStrategy),
 }
 
 impl WaitFor {
     /// Wait for the message to appear on the container's stdout.
     pub fn message_on_stdout(message: impl AsRef<[u8]>) -> WaitFor {
-        WaitFor::StdOutMessage {
-            message: Bytes::from(message.as_ref().to_vec()),
-        }
+        Self::log(LogWaitStrategy::new(LogSource::StdOut, message))
     }
 
     /// Wait for the message to appear on the container's stderr.
     pub fn message_on_stderr(message: impl AsRef<[u8]>) -> WaitFor {
-        WaitFor::StdErrMessage {
-            message: Bytes::from(message.as_ref().to_vec()),
-        }
+        Self::log(LogWaitStrategy::new(LogSource::StdErr, message))
+    }
+
+    /// Wait for the message to appear on the container's stdout.
+    pub fn log(log_strategy: LogWaitStrategy) -> WaitFor {
+        WaitFor::Log(log_strategy)
     }
 
     /// Wait for the container to become healthy.
@@ -64,6 +68,11 @@ impl WaitFor {
     /// Wait for a certain HTTP response.
     pub fn http(http_strategy: HttpWaitStrategy) -> WaitFor {
         WaitFor::Http(http_strategy)
+    }
+
+    /// Wait for the container to exit.
+    pub fn exit(exit_strategy: ExitWaitStrategy) -> WaitFor {
+        WaitFor::Exit(exit_strategy)
     }
 
     /// Wait for a certain amount of seconds.
@@ -114,18 +123,7 @@ impl WaitStrategy for WaitFor {
         container: &ContainerAsync<I>,
     ) -> crate::core::error::Result<()> {
         match self {
-            // TODO: introduce log-followers feature and switch to it (wait for signal from follower).
-            //  Thus, avoiding multiple log requests.
-            WaitFor::StdOutMessage { message } => client
-                .stdout_logs(container.id(), true)
-                .wait_for_message(message)
-                .await
-                .map_err(WaitContainerError::from)?,
-            WaitFor::StdErrMessage { message } => client
-                .stderr_logs(container.id(), true)
-                .wait_for_message(message)
-                .await
-                .map_err(WaitContainerError::from)?,
+            WaitFor::Log(strategy) => strategy.wait_until_ready(client, container).await?,
             WaitFor::Duration { length } => {
                 tokio::time::sleep(length).await;
             }
@@ -133,6 +131,9 @@ impl WaitStrategy for WaitFor {
                 strategy.wait_until_ready(client, container).await?;
             }
             WaitFor::Http(strategy) => {
+                strategy.wait_until_ready(client, container).await?;
+            }
+            WaitFor::Exit(strategy) => {
                 strategy.wait_until_ready(client, container).await?;
             }
             WaitFor::Nothing => {}
